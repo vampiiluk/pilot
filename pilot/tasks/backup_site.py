@@ -57,6 +57,16 @@ class BackupSiteTask(Task):
     def upload_to_s3(self, timestamp: str, backup_files: list[Path]) -> bool:
         try:
             offsite_backup = OffsiteBackup.from_config(self.bench.config.s3, self.bench_root)
+            incoming = sum(path.stat().st_size for path in backup_files)
+            cap_bytes = int(self.bench.config.s3.max_gb * (1024**3))
+            current = offsite_backup.size(self.site)
+            if current + incoming > cap_bytes:
+                print(
+                    f"Offsite upload skipped: {current / 2**30:.2f} GiB stored + "
+                    f"{incoming / 2**30:.2f} GiB incoming would exceed the "
+                    f"{self.bench.config.s3.max_gb} GiB cap. Backup kept locally."
+                )
+                return False
             for backup_file in backup_files:
                 offsite_backup.upload(self.site, timestamp, backup_file)
             return True

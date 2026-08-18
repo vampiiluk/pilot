@@ -128,6 +128,13 @@ class OffsiteBackup:
                 break
         return runs
 
+    def size(self, site_name: str) -> int:
+        """Total stored bytes for a site's backups (files + metadata)."""
+        keys = BackupKeys(site_name)
+        return self.s3.total_size(self.bucket, f"sites/{site_name}/backups/") + self.s3.total_size(
+            self.bucket, keys.month_prefix
+        )
+
     def get_backup(self, site_name: str, timestamp: str) -> dict[str, str] | None:
         """Return one offsite backup run from its monthly metadata file."""
         keys = BackupKeys(site_name)

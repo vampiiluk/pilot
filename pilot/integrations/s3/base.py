@@ -41,12 +41,14 @@ ENDPOINT_TEMPLATES = {
     "aws": "https://s3.{region}.amazonaws.com",
     "digitalocean": "https://{region}.digitaloceanspaces.com",
     "hetzner": "https://{region}.your-objectstorage.com",
+    "r2": "https://{region}.r2.cloudflarestorage.com",
 }
 
 PROVIDER_LABELS = {
     "aws": "Amazon S3",
     "digitalocean": "DigitalOcean Spaces",
     "hetzner": "Hetzner Object Storage",
+    "r2": "Cloudflare R2",
 }
 
 SUPPORTED_REGIONS = {
@@ -65,6 +67,7 @@ SUPPORTED_REGIONS = {
     ],
     "digitalocean": ["nyc3", "sfo3", "sgp1", "ams3", "fra1"],
     "hetzner": ["fsn1", "nbg1", "hel1"],
+    "r2": ["auto"],
 }
 
 
@@ -88,16 +91,20 @@ class S3:
     bucket_name: str
     endpoint_url: str = field(init=False)
     client: Any = field(init=False)
+    endpoint_override: str = ""
 
     def __post_init__(self):
         try:
             load_boto3()
         except ImportError as error:
             raise RuntimeError("boto3 is not installed. Run: pip install boto3") from error
-        try:
-            self.endpoint_url = build_endpoint_url(self.provider, self.region_name)
-        except ValueError as error:
-            raise S3IntegrationError(str(error)) from error
+        if self.endpoint_override:
+            self.endpoint_url = self.endpoint_override
+        else:
+            try:
+                self.endpoint_url = build_endpoint_url(self.provider, self.region_name)
+            except ValueError as error:
+                raise S3IntegrationError(str(error)) from error
         addressing_style = "virtual" if self.provider == "aws" else "path"
 
         self.client = boto3.client(
@@ -120,6 +127,7 @@ class S3:
             region_name=config.region,
             provider=config.provider,
             bucket_name=config.bucket,
+            endpoint_override=config.endpoint,
         )
         client.create_bucket_if_not_present(config.bucket)
         return client
@@ -223,7 +231,20 @@ class S3:
             return keys
         except ClientError as error:
             raise S3IntegrationError(
-                f"Failed to list '{bucket_name}/{prefix}': {error.response['Error'].get('Message', error)}",
+                f"Failed to list '{bucket_name}/{prefix}': {error.response['Error'].get('Message', error)}"
+            ) from error
+
+    def total_size(self, bucket_name: str, prefix: str) -> int:
+        """Total stored bytes under a prefix - used to enforce an offsite quota."""
+        try:
+            paginator = self.client.get_paginator("list_objects_v2")
+            total = 0
+            for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
+                total += sum(obj.get("Size", 0) for obj in page.get("Contents", []))
+            return total
+        except ClientError as error:
+            raise S3IntegrationError(
+                f"Failed to measure '{bucket_name}/{prefix}': {error.response['Error'].get('Message', error)}"
             ) from error
 
     def has_object(self, bucket_name: str, remote_key: str) -> bool:

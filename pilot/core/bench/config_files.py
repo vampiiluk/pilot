@@ -58,6 +58,7 @@ class BenchConfigFiles:
         config["s3_secret_key"] = s3_config.secret_key
         config["s3_provider"] = s3_config.provider
         config["s3_region"] = s3_config.region
+        config["s3_endpoint"] = s3_config.endpoint
         write_private_text(config_path, json.dumps(config, indent=2) + "\n")
 
     def write_common_site_config(self) -> None:

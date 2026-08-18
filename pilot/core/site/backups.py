@@ -1,6 +1,7 @@
 """Apply a retention policy to one site's backups, local and offsite."""
 
 import re
+import shlex
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -9,6 +10,14 @@ from typing import TYPE_CHECKING
 from pilot.config.site_backup import clear_retention, read_retention, write_retention
 from pilot.core.site.retention import BackupRetentionPolicy
 from pilot.integrations.s3.backups import OffsiteBackup
+
+import pilot  # noqa: E402 - used for the cron command's module root
+
+
+def _pilot_root() -> str:
+    """Directory containing the 'pilot' package, so cron commands can import it
+    regardless of the working directory cron starts them from."""
+    return str(Path(pilot.__file__).resolve().parent.parent)
 
 if TYPE_CHECKING:
     from pilot.core.site import Site
@@ -156,7 +165,8 @@ class SiteBackups:
     def _cron_command(self) -> str:
         log_file = self.site.bench.logs_path / f"backup-{self.site.config.name}.log"
         return (
-            f"{sys.executable} -m pilot.tasks.backup_site {self.site.bench.path} "
+            f"PYTHONPATH={shlex.quote(_pilot_root())} {sys.executable} -m "
+            f"pilot.tasks.backup_site {self.site.bench.path} "
             f"{self.site.config.name} --with-files >> {log_file} 2>&1"
         )
 

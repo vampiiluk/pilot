@@ -625,6 +625,8 @@ class BenchConfig:
             "bucket": self.s3.bucket,
             "provider": self.s3.provider,
             "region": self.s3.region,
+            "endpoint": self.s3.endpoint,
+            "max_gb": self.s3.max_gb,
         }
 
     def _llm_section(self) -> ConfigDict:

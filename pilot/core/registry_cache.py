@@ -164,7 +164,7 @@ class RegistryCache:
         log_file = self._cli_root / "system" / "registry-cache.log"
         log_file.parent.mkdir(parents=True, exist_ok=True)
         python, cli_root, log = (shlex.quote(str(p)) for p in (sys.executable, self._cli_root, log_file))
-        command = f"{python} -m pilot.core.registry_cache {cli_root} >> {log} 2>&1"
+        command = f"PYTHONPATH={cli_root} {python} -m pilot.core.registry_cache {cli_root} >> {log} 2>&1"
         CronManager(self._cli_root).set_schedule(_CRON_JOB_KEY, _CRON_SCHEDULE, command)
 
 

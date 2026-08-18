@@ -14,12 +14,18 @@ const secretKey = ref('')
 const bucket = ref('')
 const provider = ref('')
 const region = ref('')
+const endpoint = ref('')
+const maxGb = ref(8)
 const secretKeySet = ref(false)
 const providers = ref([])
 
 const connected = computed(() => Boolean(accessKey.value && bucket.value && secretKeySet.value))
 const providerLabel = computed(
   () => providers.value.find((p) => p.value === provider.value)?.label || provider.value,
+)
+const isR2 = computed(() => provider.value === 'r2')
+const endpointPlaceholder = computed(() =>
+  isR2.value ? 'https://<account_id>.r2.cloudflarestorage.com' : 'https://s3.example.com (optional)',
 )
 const providerOptions = computed(() =>
   providers.value.map((p) => ({ label: p.label, value: p.value })),
@@ -57,6 +63,8 @@ const load = async () => {
     bucket.value = s3.bucket || ''
     provider.value = s3.provider || providers.value[0]?.value || ''
     region.value = s3.region || ''
+    endpoint.value = s3.endpoint || ''
+    maxGb.value = s3.max_gb ?? 8
     secretKeySet.value = !!s3.secret_key_set
   } catch (e) {
     error.value = e.message || 'Could not load settings.'
@@ -76,6 +84,8 @@ const save = async () => {
         bucket: bucket.value.trim(),
         provider: provider.value,
         region: region.value,
+        endpoint: endpoint.value.trim(),
+        max_gb: Number(maxGb.value),
       },
     })
     if (!result.error) {
@@ -102,6 +112,8 @@ const disconnect = async () => {
       bucket.value = ''
       provider.value = providers.value[0]?.value || ''
       region.value = ''
+      endpoint.value = ''
+      maxGb.value = 8
       secretKeySet.value = false
       toast.success('Object storage disconnected')
     } else {
@@ -151,11 +163,38 @@ onMounted(load)
     </div>
 
     <div class="space-y-4">
-      <FormControl label="Bucket" type="text" v-model="bucket" placeholder="storage-bucket" />
+      <div class="flex sm:flex-row flex-col gap-4">
+        <FormControl
+          label="Bucket"
+          type="text"
+          v-model="bucket"
+          placeholder="storage-bucket"
+          class="w-full"
+        />
+        <FormControl
+          label="Storage Limit (GB)"
+          type="number"
+          v-model="maxGb"
+          min="0.5"
+          max="100"
+          step="0.5"
+          help="Offsite uploads stop once the bucket reaches this size, keeping you inside the free tier."
+          class="w-full sm:w-48"
+        />
+      </div>
       <div class="flex sm:flex-row flex-col gap-4">
         <Select label="Provider" v-model="provider" :options="providerOptions" class="w-full" />
         <Select label="Region" v-model="region" :options="regionOptions" class="w-full" />
       </div>
+
+      <FormControl
+        v-if="isR2 || endpoint"
+        label="Endpoint"
+        type="text"
+        v-model="endpoint"
+        :placeholder="endpointPlaceholder"
+        help="Only needed for providers without a fixed endpoint, e.g. Cloudflare R2."
+      />
 
       <div class="flex sm:flex-row flex-col gap-4">
         <FormControl

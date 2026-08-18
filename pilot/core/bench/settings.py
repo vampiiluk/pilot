@@ -182,6 +182,8 @@ def s3_payload(config: BenchConfig) -> dict:
         "bucket": config.s3.bucket,
         "provider": config.s3.provider,
         "region": config.s3.region,
+        "endpoint": config.s3.endpoint,
+        "max_gb": config.s3.max_gb,
     }
 
 

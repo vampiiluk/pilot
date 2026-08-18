@@ -199,7 +199,9 @@ class ConfigPatcher:
             return None
         if not self._s3_is_complete(s3_config):
             return "s3.access_key, s3.secret_key, s3.bucket, s3.provider, and s3.region are all required."
-        return self._validate_s3_region(s3_config)
+        if error := self._validate_s3_region(s3_config):
+            return error
+        return self._s3_max_gb_error(s3_config)
 
     @staticmethod
     def _update_s3_config(s3: dict, s3_config: S3Config) -> None:
@@ -214,6 +216,19 @@ class ConfigPatcher:
             s3_config.provider = str(s3["provider"]).strip()
         if "region" in s3:
             s3_config.region = str(s3["region"]).strip()
+        if "endpoint" in s3:
+            s3_config.endpoint = str(s3["endpoint"]).strip()
+        if "max_gb" in s3 and s3["max_gb"] not in ("", None):
+            try:
+                s3_config.max_gb = float(s3["max_gb"])
+            except (TypeError, ValueError):
+                s3_config.max_gb = -1
+
+    @staticmethod
+    def _s3_max_gb_error(s3_config: S3Config) -> str | None:
+        if s3_config.max_gb <= 0 or s3_config.max_gb > 100:
+            return "s3.max_gb must be a number between 0.5 and 100."
+        return None
 
     @staticmethod
     def _s3_has_any_value(s3_config: S3Config) -> bool:
