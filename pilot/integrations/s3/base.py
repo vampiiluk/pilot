@@ -202,11 +202,17 @@ class S3:
 
     def presigned_url(self, bucket_name: str, remote_key: str, expires_in: int = 25_200) -> str:
         """A time-limited URL the caller can hand straight to a browser/curl -
-        the download streams directly from S3, never through this server."""
+        the download streams directly from S3, never through this server. The
+        signed URL forces an attachment disposition so every browser prompts a
+        download instead of rendering the object inline."""
         try:
             return self.client.generate_presigned_url(
                 "get_object",
-                Params={"Bucket": bucket_name, "Key": remote_key},
+                Params={
+                    "Bucket": bucket_name,
+                    "Key": remote_key,
+                    "ResponseContentDisposition": f'attachment; filename="{remote_key.rsplit("/", 1)[-1]}"',
+                },
                 ExpiresIn=expires_in,
             )
         except ClientError as error:

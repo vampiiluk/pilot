@@ -14,6 +14,7 @@ import {
 
 import EmptyState from '@/components/common/EmptyState.vue'
 import BackupConfigDialog from '@/components/sites/BackupConfigDialog.vue'
+import RestoreDialog from '@/components/sites/RestoreDialog.vue'
 
 import { sitesApi } from '@/api/sites'
 import { tasksApi } from '@/api/tasks'
@@ -129,6 +130,14 @@ const menuOptions = (set) => {
         onClick: () => downloadFile(set, k),
       })),
     {
+      label: 'Restore backup',
+      icon: 'lucide-history',
+      onClick: () => {
+        restoreTarget.value = set
+        restoreRef.value?.open()
+      },
+    },
+    {
       label: 'Delete backup',
       icon: 'lucide-trash-2',
       theme: 'red',
@@ -140,10 +149,24 @@ const menuOptions = (set) => {
   ]
 }
 
+const restoreRef = ref(null)
+const restoreTarget = ref(null)
+
+const downloadViaAnchor = (url: string) => {
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = ''
+  anchor.target = '_blank'
+  anchor.rel = 'noopener'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+}
+
 const downloadFile = async (set, kind) => {
   const file = fileOf(set, kind)
   if (file?.path) {
-    window.location.href = sitesApi.backups.download(props.siteName, set.timestamp, file.filename)
+    downloadViaAnchor(sitesApi.backups.download(props.siteName, set.timestamp, file.filename))
     return
   }
   // Offsite-only file: fetch a direct, time-limited S3 link and open it -
@@ -160,7 +183,7 @@ const downloadFile = async (set, kind) => {
       error.value = 'Backup file not found offsite.'
       return
     }
-    window.open(url, '_blank')
+    downloadViaAnchor(url)
   } catch (e) {
     error.value = e.message || 'Failed to get offsite download link.'
   }
@@ -214,6 +237,8 @@ onMounted(() => {
     </div>
 
     <BackupConfigDialog ref="configRef" :site-name="siteName" @saved="loadConfig" />
+
+    <RestoreDialog ref="restoreRef" :site-name="siteName" :backup="restoreTarget" />
 
     <ErrorMessage v-if="error" :message="error" />
 

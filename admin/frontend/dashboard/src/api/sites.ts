@@ -91,6 +91,13 @@ export const sitesApi = {
           `sites/${encodeURIComponent(name)}/backups/${encodeURIComponent(timestamp)}/download-links`,
         )
         .json(),
+    restore: (name, timestamp, payload) =>
+      request
+        .post(
+          `sites/${encodeURIComponent(name)}/backups/${encodeURIComponent(timestamp)}/restore`,
+          { json: payload },
+        )
+        .json(),
     schedule: {
       get: (name) => request.get(`sites/${encodeURIComponent(name)}/backup-schedule`).json(),
       set: (name, payload) =>

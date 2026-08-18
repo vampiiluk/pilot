@@ -19,10 +19,14 @@ from admin.backend.middleware import require_scope
 from pilot.core.bench import Bench
 from pilot.exceptions import BenchError
 from pilot.internal.site_paths import site_exists
-from pilot.internal.validators import validate_cron_expression
+from pilot.internal.validators import validate_cron_expression, validate_site_name
+from pilot.tasks import TaskRunner
 from pilot.tasks.backup_site import BackupSiteTask
 
 _DEFAULT_BACKUPS_PAGE_SIZE = 20
+
+# Backup file kinds that can be restored, mapped to the task's argument names.
+_RESTORE_KINDS = {"database": "db_file", "public-file": "public_files", "private-file": "private_files"}
 
 
 @sites_bp.post("/<name>/backups")
@@ -127,6 +131,106 @@ def backup_download_links(name: str, timestamp: str):
 
 def _backup_cron_command(bench_root: Path, site: str) -> str:
     return Bench(bench_root).site(site).backups._cron_command()
+
+
+@staticmethod
+def _restore_file_path(
+    bench: Bench,
+    site_name: str,
+    timestamp: str,
+    filename: str,
+) -> Path:
+    """Local path for a backup file, fetching it from offsite storage first
+    when retention already removed the local copy."""
+    local = bench.site(site_name).backups.directory / filename
+    if local.exists():
+        return local
+    config = bench.config.s3
+    if not config.is_configured:
+        raise FileNotFoundError(f"'{filename}' only exists offsite, but offsite storage is not configured.")
+    destination = bench.site(site_name).backups.directory / filename
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    from pilot.integrations.s3.backups import OffsiteBackup
+
+    OffsiteBackup.from_config(config, bench.path).download(
+        site_name, timestamp, filename, destination
+    )
+    return destination
+
+
+@sites_bp.post("/<name>/backups/<timestamp>/restore")
+@require_scope(site_name)
+def restore_backup(name: str, timestamp: str):
+    """Restore a backup run into a NEW site.
+
+    Files missing locally (retention pruned them) are fetched from offsite
+    storage first, then the new-site-from-backup task is queued. The admin
+    password is stored in the task's secrets, never in task metadata.
+    """
+    bench_root = Path(current_app.config["BENCH_ROOT"])
+    if not site_exists(bench_root, name):
+        return site_not_found()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return malformed_body()
+    target_name = str(data.get("target_name", "")).strip()
+    admin_password = data.get("admin_password")
+    if not isinstance(admin_password, str) or not admin_password.strip():
+        return invalid_fields()
+    if err := validate_site_name(target_name):
+        return error_response("invalid_site_name", err, 422)
+
+    from admin.backend.providers.backups import BackupProvider
+
+    try:
+        match = next(
+            (s for s in BackupProvider(bench_root, name).get_all() if s.timestamp == timestamp),
+            None,
+        )
+    except Exception:
+        return internal_error("Could not read site backups.")
+    if match is None:
+        return error_response("backup_not_found", "Backup not found.", 404)
+
+    bench = Bench(bench_root)
+    if site_exists(bench_root, target_name):
+        return error_response("site_exists", f"Site '{target_name}' already exists.", 422)
+
+    include_public = data.get("include_public_files", True)
+    include_private = data.get("include_private_files", True)
+    wanted_kinds = ["database"]
+    if include_public is not False:
+        wanted_kinds.append("public-file")
+    if include_private is not False:
+        wanted_kinds.append("private-file")
+
+    args: dict = {"name": target_name, "admin_password": admin_password}
+    files_by_kind = {file.kind: file for file in match.files}
+    try:
+        for kind in wanted_kinds:
+            file = files_by_kind.get(kind)
+            if file is None or file.filename is None:
+                continue
+            args[_RESTORE_KINDS[kind]] = str(
+                _restore_file_path(bench, name, timestamp, file.filename)
+            )
+    except FileNotFoundError as error:
+        return error_response("backup_file_missing", str(error), 409)
+    except Exception:
+        return internal_error("Could not fetch the backup files from offsite storage.")
+
+    if "db_file" not in args:
+        return error_response("backup_incomplete", "This backup run has no database file.", 422)
+
+    try:
+        task_id = TaskRunner(bench_root).run("new-site-from-backup", args)
+    except Exception as error:
+        return task_failure(error)
+    bench.audit_action(
+        "backup",
+        {"site": name, "event": "restore", "timestamp": timestamp, "target": target_name},
+    )
+    return accepted_task_response(bench_root, task_id)
 
 
 def _retention_from_payload(block: dict | None):
