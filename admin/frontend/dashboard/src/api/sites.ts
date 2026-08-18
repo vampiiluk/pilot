@@ -98,6 +98,20 @@ export const sitesApi = {
           { json: payload },
         )
         .json(),
+    archived: {
+      list: () => request.get('sites/archived').json(),
+      backups: (name) =>
+        request.get(`sites/archived/${encodeURIComponent(name)}/backups`).json(),
+      move: (name, timestamp, target) =>
+        request
+          .post(`sites/archived/${encodeURIComponent(name)}/backups/${encodeURIComponent(timestamp)}/move`, {
+            json: { site: target },
+          })
+          .json(),
+      deleteRun: (name, timestamp) =>
+        request.delete(`sites/archived/${encodeURIComponent(name)}/backups/${encodeURIComponent(timestamp)}`).json(),
+      deleteSite: (name) => request.delete(`sites/archived/${encodeURIComponent(name)}`).json(),
+    },
     schedule: {
       get: (name) => request.get(`sites/${encodeURIComponent(name)}/backup-schedule`).json(),
       set: (name, payload) =>

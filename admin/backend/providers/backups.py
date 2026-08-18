@@ -37,25 +37,37 @@ class Backup:
 
 
 class BackupProvider:
-    """A site's backups, local (on disk) and offsite (S3), merged into one timeline."""
+    """A site's backups, local (on disk) and offsite (S3), merged into one timeline.
 
-    def __init__(self, bench_root: Path, site_name: str) -> None:
+    Pass an explicit ``directory`` to read another folder's backup files - e.g.
+    an archived site's ``private/backups`` - in which case only local files are
+    listed (an archived site is no longer this bench's to push offsite).
+    """
+
+    def __init__(
+        self, bench_root: Path, site_name: str, directory: Path | None = None
+    ) -> None:
         self._site_name = site_name
         self._bench = Bench(bench_root)
         self._site = self._bench.site(site_name)
+        self._directory = directory or self._site.backups.directory
 
     def get_all(self, limit: int | None = None) -> list[Backup]:
         backups = self.merge_backups(self.local_backups, self.get_offsite_backups(limit))
         ordered = sorted(backups.values(), key=lambda backup: backup.timestamp, reverse=True)
         return ordered[:limit] if limit is not None else ordered
 
+    def get_local_only(self) -> list[Backup]:
+        ordered = sorted(self.local_backups.values(), key=lambda b: b.timestamp, reverse=True)
+        return ordered
+
     @property
     def local_backups(self) -> dict[str, Backup]:
-        if not self._site.backups.directory.is_dir():
+        if not self._directory.is_dir():
             return {}
 
         files_by_timestamp: dict[str, list[BackupFile]] = {}
-        for path in self._site.backups.directory.iterdir():
+        for path in self._directory.iterdir():
             if path.is_file():
                 backup_file = self.get_local_file(path)
                 files_by_timestamp.setdefault(backup_file.timestamp, []).append(backup_file)
@@ -68,7 +80,7 @@ class BackupProvider:
         return backups
 
     def get_offsite_backups(self, limit: int | None) -> dict[str, Backup]:
-        if not self._bench.config.s3.is_configured:
+        if not self._bench.config.s3.is_configured or self._directory != self._site.backups.directory:
             return {}
 
         offsite = OffsiteBackup.from_config(self._bench.config.s3, self._bench.path)

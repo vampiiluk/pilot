@@ -17,6 +17,7 @@ import {
 import EmptyState from '@/components/common/EmptyState.vue'
 import SiteSkeleton from '@/components/sites/SiteSkeleton.vue'
 import NewSiteDialog from '@/components/sites/NewSiteDialog.vue'
+import ArchivedSitesDialog from '@/components/sites/ArchivedSitesDialog.vue'
 import StickyToolbar from '@/components/common/StickyToolbar.vue'
 
 import { sitesApi } from '@/api/sites'
@@ -154,6 +155,7 @@ const siteMenuOptions = (site) => {
 }
 
 const showCreate = ref(false)
+const archivedRef = ref(null)
 
 watch(
   () => route.query.new,
@@ -360,9 +362,21 @@ onMounted(() => {
     </Button>
   </Teleport>
 
+  <!-- Archived Sites Button -->
+  <Teleport defer to="#header-actions">
+    <Button variant="subtle" @click="archivedRef.open()">
+      <template #prefix>
+        <span class="size-4 lucide-archive" />
+      </template>
+      Archived sites
+    </Button>
+  </Teleport>
+
   <NewSiteDialog
     v-model="showCreate"
     :sites="sites"
     @started="(taskId) => openTaskDetailPage(router, taskId)"
   />
+
+  <ArchivedSitesDialog ref="archivedRef" />
 </template>
