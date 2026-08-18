@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-import { Button, Dialog, Dropdown, ErrorMessage, FormControl, toast } from 'frappe-ui'
+import { Button, Combobox, Dialog, Dropdown, ErrorMessage, toast } from 'frappe-ui'
 
 import { sitesApi } from '@/api/sites'
 import { apiErrorMessage } from '@/api/client'
@@ -179,7 +179,7 @@ defineExpose({ open })
             <p class="text-ink-gray-5 text-p-sm">Pub {{ fmtBytes(fileOf(run, 'public-file')?.size_bytes) }}</p>
             <p class="text-ink-gray-5 text-p-sm">Priv {{ fmtBytes(fileOf(run, 'private-file')?.size_bytes) }}</p>
             <div class="flex-1" />
-            <FormControl
+            <Combobox
               class="w-48"
               :options="liveSites.filter((s) => s !== site.name)"
               placeholder="Move into…"
