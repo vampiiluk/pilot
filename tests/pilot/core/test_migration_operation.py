@@ -9,7 +9,7 @@ import pytest
 
 from pilot.core.app import RevisionPin
 from pilot.core.bench.migration.diagnosis import diagnose
-from pilot.core.bench.migration.operation import AppRevision
+from pilot.core.bench.migration.operation import AppRevision, SiteProgress
 from pilot.core.bench.migration.state import MigrationStateError, get_state, validate_transition
 from pilot.exceptions import BenchError, MigrateError
 from pilot.integrations.marketplace import Marketplace
@@ -664,6 +664,32 @@ def test_revert_skips_reverting_apps_phase_when_no_apps(tmp_path: Path) -> None:
     operation.revert()
 
     assert operation.state == "reverting_sites"
+
+
+def test_revert_site_stays_in_reverting_sites_until_every_site_is_done(tmp_path: Path) -> None:
+    """Recovering the first of several sites must not re-enter its own phase."""
+    mock_bench = MagicMock()
+    mock_bench.path = tmp_path
+
+    from pilot.core.bench.migration.store import MigrationStore
+
+    operation = MigrationStore(mock_bench).create_site_migrate("site1.localhost")
+    operation.sites.append(SiteProgress(name="site2.localhost"))
+    for site in operation.sites:
+        site.backup_status = "backed_up"
+        site.migration_status = "failed"
+    operation.state = get_state("needs_attention")
+
+    operation.revert()
+    operation.revert_site("site1.localhost")
+
+    assert operation.state == "reverting_sites"
+    assert operation.revert_checkpoints["site:site1.localhost"] is True
+    assert operation.next_revert_site() == "site2.localhost"
+
+    operation.revert_site("site2.localhost")
+
+    assert operation.state == "restarting"
 
 
 def test_next_revert_site_skips_pending_and_recovered_sites(tmp_path: Path) -> None:

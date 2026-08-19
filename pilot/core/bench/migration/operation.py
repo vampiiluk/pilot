@@ -311,7 +311,7 @@ class MigrationOperation:
         if not self.can_revert:
             raise BenchError("Restore is unavailable: safeguards were not created for this update.")
         self.diagnosis = None
-        self._transition(self._next_revert_phase())
+        self._advance_revert()
 
     def next_revert_site(self) -> str | None:
         return next(
@@ -335,10 +335,11 @@ class MigrationOperation:
                 self.bench._reinstall_apps(filter_set, on_progress)
                 self.bench._rebuild_assets(filter_set, on_progress)
             self.revert_checkpoints["apps"] = True
+            self._save()
         except Exception as error:
             self._fail_revert(error)
             raise
-        self._transition(self._next_revert_phase())
+        self._advance_revert()
 
     def revert_site(
         self, name: str, on_step: OnStep = _NO_STEP, on_progress: OnProgress = _NO_PROGRESS
@@ -355,10 +356,11 @@ class MigrationOperation:
             self.bench.site(name).clear_cache()
             site.migration_status = "recovered"
             self.revert_checkpoints[f"site:{name}"] = True
+            self._save()
         except Exception as error:
             self._fail_revert(error)
             raise
-        self._transition(self._next_revert_phase())
+        self._advance_revert()
 
     def restart(self, on_step: OnStep = _NO_STEP) -> None:
         on_step("restart", "Restarting services")
@@ -373,6 +375,12 @@ class MigrationOperation:
             self._fail_revert(error)
             raise
         self._transition("reverted")
+
+    def _advance_revert(self) -> None:
+        """Enter the next revert phase, staying put while the current one has more units to do."""
+        phase = self._next_revert_phase()
+        if phase != self.state:
+            self._transition(phase)
 
     def _next_revert_phase(self) -> str:
         if self.apps and not self.revert_checkpoints.get("apps"):
