@@ -168,7 +168,7 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
-    location ~ ^/files/.*\.(jpg|jpeg|png|gif|svg|webp|pdf|docx?|xlsx?)$ {
+    location ~ ^/files/ {
         root {{ vhost.public_root }};
         try_files $uri =404;
     }
