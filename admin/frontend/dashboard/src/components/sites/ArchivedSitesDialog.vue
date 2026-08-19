@@ -77,6 +77,7 @@ const moveRun = async (archivedName: string, run: object) => {
     if (result.task_id) openTaskDetailPage(router, result.task_id)
     else error.value = apiErrorMessage(result, 'Move failed.')
     await loadRuns(archivedName)
+    await refreshAll()
   } catch (e) {
     error.value = e.message || 'Move failed.'
   } finally {

@@ -42,6 +42,12 @@ class MoveArchivedBackupTask(Task):
             moved += 1
         if not moved:
             raise BenchError(f"No backup files found for {self.timestamp} in archived site '{self.site}'.")
+        if not any(p.is_file() for p in source_dir.iterdir()):
+            archived_dir = source_dir.parent.parent
+            shutil.rmtree(archived_dir)
+            link = self.bench.sites_path / self.site
+            if link.is_symlink() and str(link.resolve()).startswith(str(archived_dir.resolve())):
+                link.unlink()
 
 
 @dataclass(kw_only=True)
@@ -70,6 +76,12 @@ class DeleteArchivedBackupTask(Task):
             removed += 1
         if not removed:
             raise BenchError(f"No backup files found for {self.timestamp} in archived site '{self.site}'.")
+        if not any(p.is_file() for p in source_dir.iterdir()):
+            archived_dir = source_dir.parent.parent
+            shutil.rmtree(archived_dir)
+            link = self.bench.sites_path / self.site
+            if link.is_symlink() and str(link.resolve()).startswith(str(archived_dir.resolve())):
+                link.unlink()
 
 
 @dataclass(kw_only=True)
