@@ -20,6 +20,30 @@ Pilot makes it simple to run Frappe on your own servers. Use the Admin UI to man
 
 ![Apps](.github/assets/pilot.png)
 
+## What's New in This Fork
+
+> This is the **vampiiluk/pilot** fork of Frappe Pilot, synced with upstream
+> `develop`. It ships everything upstream **plus** the site-recovery features
+> below.
+
+- **Restore a backup into a new site:** any backup run can be restored as a
+  brand-new site — DB plus optional public/private files — straight from the
+  dashboard. Files already pruned by retention are re-fetched from offsite
+  storage first.
+- **Archived-sites management:** browse sites parked in the archive, move a
+  backup run back into a live site's backup folder, or delete a whole archived
+  site — all from the Sites page.
+- **Offsite backup quotas & Cloudflare R2:** S3 settings gain an endpoint and a
+  per-site size cap (in GB); R2 is a first-class provider and uploads stop with
+  a warning once a site's bucket usage would exceed the quota.
+- **Forced-download backup links:** presigned S3 URLs force an `attachment`
+  disposition so browsers download backups instead of rendering them.
+- **Cross-platform size reporting:** directory sizes use POSIX `du -sk` and DB
+  sizes use engine-specific queries (MariaDB/PostgreSQL) instead of fragile
+  schema-size guesses.
+- **Self-updates from this fork:** the release-checker tracks `vampiiluk/pilot`
+  releases, so the installer keeps your deployment on the fork.
+
 ## Key Features
 
 - Bench and site lifecycle: create, update, rename, restore, back up, and drop
