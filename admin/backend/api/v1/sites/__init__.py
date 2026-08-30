@@ -11,6 +11,7 @@ from admin.backend.api.v1.sites import (  # noqa: E402
     core,
     domains,
     monitoring,
+    storage,
     uptime,
 )
 
@@ -24,5 +25,6 @@ __all__ = [
     "domains",
     "monitoring",
     "sites_bp",
+    "storage",
     "uptime",
 ]
