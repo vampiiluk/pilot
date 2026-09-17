@@ -1,18 +1,11 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { computed, onMounted, ref } from 'vue'
-
-import { ListFooter, ListView, ListRowItem } from 'frappe-ui/experimental'
-
-import {
-  Button,
-  Dialog,
-  Dropdown,
-  ErrorMessage,
-  LoadingText,
-} from 'frappe-ui'
+import { Badge, Button, Dialog, Dropdown, ErrorMessage, Select } from 'frappe-ui'
 
 import EmptyState from '@/components/common/EmptyState.vue'
+import ListSkeleton from '@/components/common/ListSkeleton.vue'
+import Table from '@/components/common/Table.vue'
 import BackupConfigDialog from '@/components/sites/BackupConfigDialog.vue'
 import RestoreDialog from '@/components/sites/RestoreDialog.vue'
 
@@ -24,7 +17,11 @@ import { fmtDateTime } from '@/utils/taskFormat'
 import { useSite } from '@/composables/sites/useSite'
 import { openTaskDetailPage } from '@/utils/taskRoute'
 
-const props = defineProps({ siteName: { type: String, required: true } })
+interface Props {
+  siteName: string
+}
+
+const props = defineProps<Props>()
 const router = useRouter()
 
 const {
@@ -37,14 +34,7 @@ const {
   setBackupsPageLength,
 } = useSite(props.siteName)
 
-const footerOptions = computed(() => ({
-  rowCount: backups.value.length,
-  // ListFooter shows "Load More" only when rowCount < totalCount; we don't know
-  // the true total (S3 metadata is read lazily), so nudge it past rowCount
-  // whenever the backend signals there may be another page.
-  totalCount: backupsHasMore.value ? backups.value.length + 1 : backups.value.length,
-  pageLengthOptions: [20, 50, 100],
-}))
+const pageLengths = [20, 50, 100].map((n) => ({ label: `${n} per page`, value: n }))
 
 const backingUp = ref(false)
 const error = ref('')
@@ -82,12 +72,12 @@ const backupNow = async () => {
 }
 
 const columns = [
-  { label: 'Date', key: 'timestamp', align: 'left', width: 2 },
-  { label: 'Database', key: 'database', align: 'center', width: 1 },
-  { label: 'Public', key: 'public', align: 'center', width: 1 },
-  { label: 'Private', key: 'private', align: 'center', width: 1 },
-  { label: 'Offsite', key: 'offsite', align: 'center', width: 1 },
-  { label: '', key: 'actions', align: 'right', width: '3rem' },
+  { label: 'Date', key: 'timestamp', class: 'w-1/3' },
+  { label: 'Database', key: 'database', class: 'tabular-nums' },
+  { label: 'Public', key: 'public', class: 'tabular-nums' },
+  { label: 'Private', key: 'private', class: 'tabular-nums' },
+  { label: 'Offsite', key: 'offsite', class: 'text-center' },
+  { label: '', key: 'actions', class: 'w-12' },
 ]
 
 const fileOf = (set, kind) => set.files?.find((f) => f.kind === kind) ?? null
@@ -218,22 +208,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4 mt-5">
-    <div class="flex sm:flex-row flex-col sm:justify-between sm:items-center gap-3">
-      <div>
-        <p class="font-medium text-ink-gray-8 text-base">Automated backups</p>
-        <p class="mt-0.5 text-ink-gray-5 text-p-sm">{{ scheduleSummary }}</p>
-      </div>
-
-      <div class="flex items-center gap-2 shrink-0">
-        <Button variant="subtle" size="sm" @click="configRef.open()"
-          >{{ enabled ? 'Configure' : 'Enable' }}</Button
-        >
-        <Button size="sm" :loading="backingUp" @click="backupNow">
-          <template #prefix><span class="size-4 lucide-archive" /></template>
-          Back up now
-        </Button>
-      </div>
+  <div class="flex sm:flex-row flex-col sm:justify-between sm:items-center gap-3 mb-4">
+    <div>
+      <p class="font-medium text-ink-gray-8">Automated backups</p>
+      <p class="mt-0.5 text-ink-gray-5 text-p-sm">{{ scheduleSummary }}</p>
     </div>
 
     <BackupConfigDialog ref="configRef" :site-name="siteName" @saved="loadConfig" />
@@ -310,21 +288,4 @@ onMounted(() => {
       />
     </div>
   </div>
-
-  <!-- Delete backup dialog -->
-  <Dialog v-model="showDelete" title="Delete Backup" size="sm">
-    <p class="text-ink-gray-7 text-sm">
-      Delete the backup from
-      <strong>{{ deleteTarget ? fmtDateTime(deleteTarget.created_at) : '' }}</strong>? This cannot
-      be undone.
-    </p>
-
-    <ErrorMessage v-if="deleteError" :message="deleteError" class="mt-2" />
-    <div class="flex justify-end gap-2 mt-4">
-      <Button variant="ghost" @click="showDelete = false">Cancel</Button>
-      <Button variant="solid" theme="red" :loading="deleting" @click="confirmDelete"
-        >Delete</Button
-      >
-    </div>
-  </Dialog>
 </template>

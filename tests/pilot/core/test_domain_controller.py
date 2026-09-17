@@ -1,5 +1,3 @@
-"""Tests for DomainRouteProvider driving a real (dummy) bench-domain-provider."""
-
 import json
 import os
 from pathlib import Path
@@ -19,8 +17,6 @@ _BENCH_DATA: dict = {
     "redis": {"cache_port": 13000, "queue_port": 11000},
 }
 
-# Dummy bench-domain-provider: logs its argv to $PROVIDER_LOG and answers each
-# verb with canned JSON. $PROVIDER_FAIL=<verb> makes that verb exit non-zero.
 _DUMMY_PROVIDER = """#!/usr/bin/env python3
 import json, os, sys
 argv = sys.argv[1:]
@@ -193,7 +189,7 @@ def test_builtin_dns_records_without_provider(tmp_path: Path, monkeypatch) -> No
 def test_nginx_gates_tcp_peer_to_provider_proxy_servers(tmp_path: Path, monkeypatch) -> None:
     _install_provider(tmp_path, monkeypatch)
     config = NginxConfigRenderer(_make_bench(tmp_path)).generate_bench_config(
-        [(SiteConfig(name="site1.example.com", apps=["frappe"]), False)], admin_ssl=False
+        [(SiteConfig(name="site1.example.com", apps=["frappe"]), [])], admin_ssl=False
     )
 
     assert "set_real_ip_from   203.0.113.10;" in config

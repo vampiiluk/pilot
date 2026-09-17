@@ -3,6 +3,84 @@ upstream bench-{{ upstream_name }} {
     keepalive 32;
 }
 
+{% for alias in aliases %}
+server {
+    listen {{ http_port }};
+    listen [::]:{{ http_port }};
+    server_name {{ alias.server_name }};
+
+    location /.well-known/acme-challenge/ {
+        allow all;
+        root {{ acme_root }};
+        try_files $uri =404;
+    }
+
+    {% if alias.redirect %}
+    location / {
+        return 301 {{ alias.redirect }}$request_uri;
+    }
+    {% else %}
+    {% if alias.site %}
+    root {{ sites_root }};
+    client_max_body_size {{ client_max_body_size }};
+
+    location /assets {
+        try_files $uri =404;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    {# frappe's FORCE_DOWNLOAD_EXTENSIONS; inline markup would be stored XSS #}
+    location ~* ^/files/.*\.(svg|svgz|html|htm|xhtml|xht|shtml|shtm|mhtml|mht|xml|xsl|xslt|swf)$ {
+        root {{ alias.public_root }};
+        add_header Content-Disposition "attachment";
+        try_files $uri @app;
+    }
+
+    location /files/ {
+        root {{ alias.public_root }};
+        try_files $uri @app;
+    }
+
+    location @app {
+        proxy_pass         {{ alias.proxy_pass }};
+        proxy_read_timeout 120;
+        proxy_redirect     off;
+        proxy_set_header   Host               $host;
+        proxy_set_header   X-Real-IP          $remote_addr;
+        proxy_set_header   X-Forwarded-For    $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto  $scheme;
+        proxy_set_header   X-Frappe-Site-Name {{ alias.site }};
+    }
+
+    location /socket.io {
+        proxy_pass         http://127.0.0.1:{{ socketio_port }};
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   X-Frappe-Site-Name {{ alias.site }};
+        proxy_set_header   Origin $scheme://$http_host;
+        proxy_set_header   Host $host;
+    }
+
+    {% endif %}
+    location / {
+        proxy_pass         {{ alias.proxy_pass }};
+        proxy_read_timeout 120;
+        proxy_redirect     off;
+        proxy_set_header   Host               $host;
+        proxy_set_header   X-Real-IP          $remote_addr;
+        proxy_set_header   X-Forwarded-For    $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto  $scheme;
+        {% if alias.site %}
+        proxy_set_header   X-Frappe-Site-Name {{ alias.site }};
+        {% endif %}
+    }
+    {% endif %}
+}
+
+{% endfor %}
+
 {% for vhost in vhosts %}
 {% if vhost.ssl %}
 {# HTTP vhost: redirect everything to HTTPS, minus the ACME challenge path #}
@@ -83,8 +161,8 @@ server {
 {# main vhost: HTTPS when a cert is ready, plain HTTP otherwise #}
 server {
     {% if vhost.ssl %}
-    listen {{ https_port }} ssl http2;
-    listen [::]:{{ https_port }} ssl http2;
+    listen {{ https_port }} ssl http2{% if vhost.proxy_protocol %} proxy_protocol{% endif %};
+    listen [::]:{{ https_port }} ssl http2{% if vhost.proxy_protocol %} proxy_protocol{% endif %};
     {% else %}
     listen {{ http_port }};
     listen [::]:{{ http_port }};
@@ -97,7 +175,7 @@ server {
     {% for ip in proxy_servers %}
     set_real_ip_from   {{ ip }};
     {% endfor %}
-    real_ip_header     X-Forwarded-For;
+    real_ip_header     {% if vhost.proxy_protocol %}proxy_protocol{% else %}X-Forwarded-For{% endif %};
     real_ip_recursive  on;
     set $bench_from_proxy 0;
     if ($realip_remote_addr ~ "^({{ proxy_peers }})$") { set $bench_from_proxy 1; }
@@ -168,9 +246,27 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
-    location ~ ^/files/ {
+    {# frappe's FORCE_DOWNLOAD_EXTENSIONS; inline markup would be stored XSS #}
+    location ~* ^/files/.*\.(svg|svgz|html|htm|xhtml|xht|shtml|shtm|mhtml|mht|xml|xsl|xslt|swf)$ {
         root {{ vhost.public_root }};
-        try_files $uri =404;
+        add_header Content-Disposition "attachment";
+        try_files $uri @app;
+    }
+
+    location /files/ {
+        root {{ vhost.public_root }};
+        try_files $uri @app;
+    }
+
+    location @app {
+        proxy_pass         http://bench-{{ upstream_name }};
+        proxy_read_timeout 120;
+        proxy_redirect     off;
+        proxy_set_header   Host               $host;
+        proxy_set_header   X-Real-IP          $remote_addr;
+        proxy_set_header   X-Forwarded-For    {% if proxy_servers %}$http_x_forwarded_for{% else %}$proxy_add_x_forwarded_for{% endif %};
+        proxy_set_header   X-Forwarded-Proto  $scheme;
+        proxy_set_header   X-Frappe-Site-Name {{ vhost.name }};
     }
 
     {# realtime (socket.io) #}

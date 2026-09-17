@@ -131,6 +131,13 @@ def validate_new_site(bench: "Bench", name: str, apps: list[str]) -> bool:
             f"'{name}' is already used by bench '{owner}' (as a site or its admin domain). "
             f"All benches share one nginx, so hostnames must be unique."
         )
+    # host_owner skips this bench; another of its sites may already answer to
+    # the name as a custom domain, or hold it as a certificate lineage.
+    if claimed_by := bench.site_claiming(name):
+        raise BenchError(
+            f"'{name}' is already claimed by this bench's site '{claimed_by}'. "
+            f"All benches share one nginx, so hostnames must be unique."
+        )
     if normalize_host(name) == normalize_host(bench.config.admin.domain):
         raise BenchError(
             f"Site '{name}' clashes with this bench's admin domain. "
@@ -167,9 +174,9 @@ def provision_from_backup(
 
 
 def should_enable_ssl(bench: "Bench", name: str) -> bool:
-    from pilot.managers.letsencrypt import _is_public_domain, letsencrypt_active
+    from pilot.managers.letsencrypt import is_public_domain, letsencrypt_active
 
-    return letsencrypt_active(bench) and _is_public_domain(name)
+    return letsencrypt_active(bench) and is_public_domain(name)
 
 
 def register_with_provider(bench: "Bench", name: str) -> None:
