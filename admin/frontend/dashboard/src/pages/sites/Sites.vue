@@ -118,7 +118,7 @@ const openSite = (site) => {
 const backupNow = async (site) => {
   try {
     const result = await sitesApi.backups.create(site.name)
-    if (result.ok) openTaskDetailPage(router, result.task_id)
+    if (result.task_id) openTaskDetailPage(router, result.task_id)
     else toast.error(apiErrorMessage(result, 'Could not start backup'))
   } catch (caught) {
     toast.error(caught.message || 'Could not start backup')

@@ -130,7 +130,7 @@ const loginAsAdmin = () => {
 const backupNow = async () => {
   try {
     const result = await backup()
-    if (result.ok) openTaskDetailPage(router, result.task_id)
+    if (result.task_id) openTaskDetailPage(router, result.task_id)
     else toast.error(apiErrorMessage(result, 'Could not start backup'))
   } catch (caught) {
     toast.error(caught.message || 'Could not start backup')

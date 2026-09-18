@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { computed, onMounted, ref } from 'vue'
-import { Badge, Button, Dialog, Dropdown, ErrorMessage, Select } from 'frappe-ui'
+import {
+  Badge,
+  Button,
+  Dialog,
+  Dropdown,
+  ErrorMessage,
+  LoadingText,
+  Select,
+  toast,
+} from 'frappe-ui'
+import { ListFooter, ListRowItem, ListView } from 'frappe-ui/experimental'
 
 import EmptyState from '@/components/common/EmptyState.vue'
 import ListSkeleton from '@/components/common/ListSkeleton.vue'
@@ -62,8 +72,13 @@ const backupNow = async () => {
   error.value = ''
   try {
     const result = await sitesApi.backups.create(props.siteName)
-    if (result.task_id) openTaskDetailPage(router, result.task_id)
-    else error.value = apiErrorMessage(result, 'Backup failed.')
+    if (result.task_id) {
+      toast.success('Backup started')
+      // Refresh the list after a short delay to let the backup complete
+      setTimeout(() => loadBackups(), 3000)
+    } else {
+      error.value = apiErrorMessage(result, 'Backup failed.')
+    }
   } catch (e) {
     error.value = e.message || 'Backup failed.'
   } finally {
@@ -72,12 +87,12 @@ const backupNow = async () => {
 }
 
 const columns = [
-  { label: 'Date', key: 'timestamp', class: 'w-1/3' },
-  { label: 'Database', key: 'database', class: 'tabular-nums' },
-  { label: 'Public', key: 'public', class: 'tabular-nums' },
-  { label: 'Private', key: 'private', class: 'tabular-nums' },
-  { label: 'Offsite', key: 'offsite', class: 'text-center' },
-  { label: '', key: 'actions', class: 'w-12' },
+  { label: 'Date', key: 'timestamp', width: 2 },
+  { label: 'Database', key: 'database', width: 1, class: 'tabular-nums' },
+  { label: 'Public', key: 'public', width: 1, class: 'tabular-nums' },
+  { label: 'Private', key: 'private', width: 1, class: 'tabular-nums' },
+  { label: 'Offsite', key: 'offsite', width: 0.5, class: 'text-center' },
+  { label: '', key: 'actions', width: 0.5 },
 ]
 
 const fileOf = (set, kind) => set.files?.find((f) => f.kind === kind) ?? null
@@ -208,18 +223,23 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex sm:flex-row flex-col sm:justify-between sm:items-center gap-3 mb-4">
-    <div>
-      <p class="font-medium text-ink-gray-8">Automated backups</p>
-      <p class="mt-0.5 text-ink-gray-5 text-p-sm">{{ scheduleSummary }}</p>
+  <div>
+    <!-- Header row -->
+    <div class="flex sm:flex-row flex-col sm:justify-between sm:items-center gap-3 mb-4">
+      <div>
+        <p class="font-medium text-ink-gray-8">Automated backups</p>
+        <p class="mt-0.5 text-ink-gray-5 text-p-sm">{{ scheduleSummary }}</p>
+      </div>
+      <Button size="sm" variant="subtle" @click="configRef?.open()">
+        <template #prefix><span class="size-4 lucide-settings" /></template>
+        Configure
+      </Button>
     </div>
 
-    <BackupConfigDialog ref="configRef" :site-name="siteName" @saved="loadConfig" />
+    <!-- Error -->
+    <ErrorMessage v-if="error" :message="error" class="mb-4" />
 
-    <RestoreDialog ref="restoreRef" :site-name="siteName" :backup="restoreTarget" />
-
-    <ErrorMessage v-if="error" :message="error" />
-
+    <!-- Backup list -->
     <div :class="backups.length ? '' : 'rounded-7 border border-dashed border-outline-gray-2'">
       <div v-if="backupsLoading" class="flex justify-center py-12">
         <LoadingText />
@@ -287,5 +307,25 @@ onMounted(() => {
         @load-more="loadMoreBackups"
       />
     </div>
+
+    <!-- Delete confirmation dialog -->
+    <Dialog v-model="showDelete" title="Delete backup" size="sm">
+      <p class="text-ink-gray-6 text-p-sm">
+        Are you sure you want to delete this backup? This action cannot be undone.
+      </p>
+      <ErrorMessage v-if="deleteError" :message="deleteError" class="mt-3" />
+      <template #actions>
+        <div class="flex justify-end gap-2">
+          <Button variant="ghost" @click="showDelete = false">Cancel</Button>
+          <Button variant="solid" theme="red" :loading="deleting" @click="confirmDelete">
+            Delete
+          </Button>
+        </div>
+      </template>
+    </Dialog>
+
+    <!-- Dialogs (rendered as portals, no layout impact) -->
+    <BackupConfigDialog ref="configRef" :site-name="siteName" @saved="loadConfig" />
+    <RestoreDialog ref="restoreRef" :site-name="siteName" :backup="restoreTarget" />
   </div>
 </template>
