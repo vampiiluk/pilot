@@ -487,7 +487,7 @@ def test_admin_tls_roundtrip() -> None:
     "section,field,url",
     [
         ("admin", "jwks_url", "http://169.254.169.254/token"),
-        ("datum", "endpoint", "file:///etc/shadow"),
+        ("telemetry", "endpoint", "file:///etc/shadow"),
         ("llm", "api_base", "http://user:password@llm.example.com/v1"),
     ],
 )
