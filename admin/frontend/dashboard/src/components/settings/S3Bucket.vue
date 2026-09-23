@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { Alert, Button, ErrorMessage, Select, Spinner, TextInput, toast } from 'frappe-ui'
+import { Alert, Button, ErrorMessage, FormControl, Select, Spinner, TextInput, toast } from 'frappe-ui'
 
 import { apiErrorMessage } from '@/api/client'
 import { settingsApi } from '@/api/settings'
@@ -14,7 +14,7 @@ const secretKey = ref('')
 const bucket = ref('')
 const provider = ref('')
 const region = ref('')
-const endpoint = ref('')
+const endpointUrl = ref('')
 const maxGb = ref(8)
 const secretKeySet = ref(false)
 const providers = ref([])
@@ -37,7 +37,10 @@ const regionOptions = computed(
       ?.regions.map((r) => ({ label: r, value: r })) || [],
 )
 
-watch(provider, () => {
+watch(provider, (_provider, previousProvider) => {
+  if (previousProvider) {
+    endpointUrl.value = ''
+  }
   if (!regionOptions.value.some((o) => o.value === region.value)) {
     region.value = regionOptions.value[0]?.value || ''
   }
@@ -63,7 +66,7 @@ const load = async () => {
     bucket.value = s3.bucket || ''
     provider.value = s3.provider || providers.value[0]?.value || ''
     region.value = s3.region || ''
-    endpoint.value = s3.endpoint || ''
+    endpointUrl.value = s3.endpoint_url || ''
     maxGb.value = s3.max_gb ?? 8
     secretKeySet.value = !!s3.secret_key_set
   } catch (e) {
@@ -84,7 +87,7 @@ const save = async () => {
         bucket: bucket.value.trim(),
         provider: provider.value,
         region: region.value,
-        endpoint: endpoint.value.trim(),
+        endpoint_url: endpointUrl.value.trim(),
         max_gb: Number(maxGb.value),
       },
     })
@@ -112,7 +115,7 @@ const disconnect = async () => {
       bucket.value = ''
       provider.value = providers.value[0]?.value || ''
       region.value = ''
-      endpoint.value = ''
+      endpointUrl.value = ''
       maxGb.value = 8
       secretKeySet.value = false
       toast.success('Object storage disconnected')
@@ -193,10 +196,10 @@ onMounted(load)
       </div>
 
       <FormControl
-        v-if="isR2 || endpoint"
+        v-if="isR2 || endpointUrl"
         label="Endpoint"
         type="text"
-        v-model="endpoint"
+        v-model="endpointUrl"
         :placeholder="endpointPlaceholder"
         help="Only needed for providers without a fixed endpoint, e.g. Cloudflare R2."
       />

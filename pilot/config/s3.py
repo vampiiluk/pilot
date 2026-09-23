@@ -8,7 +8,7 @@ class S3Config:
     bucket: str = ""
     provider: str = ""
     region: str = ""
-    endpoint: str = ""
+    endpoint_url: str = ""
     max_gb: float = 8.0
 
     @property

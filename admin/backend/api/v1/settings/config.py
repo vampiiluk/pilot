@@ -280,8 +280,8 @@ class ConfigPatcher:
             s3_config.provider = str(s3["provider"]).strip()
         if "region" in s3:
             s3_config.region = str(s3["region"]).strip()
-        if "endpoint" in s3:
-            s3_config.endpoint = str(s3["endpoint"]).strip()
+        if "endpoint_url" in s3:
+            s3_config.endpoint_url = str(s3["endpoint_url"]).strip()
         if "max_gb" in s3 and s3["max_gb"] not in ("", None):
             try:
                 s3_config.max_gb = float(s3["max_gb"])
@@ -302,6 +302,7 @@ class ConfigPatcher:
             or s3_config.bucket
             or s3_config.provider
             or s3_config.region
+            or s3_config.endpoint_url
         )
 
     @staticmethod
@@ -316,6 +317,11 @@ class ConfigPatcher:
 
     @staticmethod
     def _validate_s3_region(s3_config: S3Config) -> str | None:
+        if s3_config.endpoint_url:
+            from pilot.internal.validators import validate_external_url
+
+            return validate_external_url(s3_config.endpoint_url, "s3.endpoint_url")
+
         from pilot.integrations.s3.base import SUPPORTED_REGIONS
 
         if s3_config.provider not in SUPPORTED_REGIONS:
