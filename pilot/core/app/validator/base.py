@@ -12,9 +12,15 @@ if typing.TYPE_CHECKING:
 
 
 class ValidationCheck(typing.Protocol):
-    """A single check run against a cloned app before it's installed."""
+    """A single check run against a cloned app before it's installed.
 
-    def run(self, app: "App") -> None: ...
+    Checks raise AppValidationError to block the install. A check may instead
+    return a list of warning messages for legacy-but-installable apps (e.g. no
+    frappe version declared): the install proceeds, the caller shows the
+    warnings first.
+    """
+
+    def run(self, app: "App") -> list[str] | None: ...
 
 
 def module_path(app: "App") -> Path:

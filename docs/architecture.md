@@ -65,8 +65,9 @@ Checks read the app's source, never run it. Hooks validation resolves each dotte
 not to code that works: it cannot see a wrong signature, and stops at the first attribute, so `module.Class.method`
 is checked only as far as `Class`.
 
-Every app must ship `pyproject.toml` with a `[tool.bench.frappe-dependencies]` table pinning the frappe versions it
-supports, and the declared ranges are compared against the versions actually installed.
+Apps should ship `pyproject.toml` with a `[tool.bench.frappe-dependencies]` table pinning the frappe
+versions it supports, and the declared ranges are compared against the versions actually installed.
+An app that declares nothing at all is a warning, not an error: nothing can be compared.
 
 Database objects are created from `bench.db_type`. A bench uses one engine for its sites: `mariadb`, `postgres`, or `sqlite`.
 

@@ -16,18 +16,25 @@ _EXAMPLE_SPECIFIER = ">=16.0.0,<17.0.0"
 class DependencyDeclarationsCheck:
     """Ensure hooks and pyproject.toml have sane dependency requirements."""
 
-    def run(self, app: "App") -> None:
+    def run(self, app: "App") -> list[str]:
         if app.module_name == "frappe":
-            return  # the framework itself has nothing to declare a dependency on
+            return []  # the framework itself has nothing to declare a dependency on
 
         declared = self.get_frappe_dependencies(app)
         if "frappe" not in declared:
-            raise AppValidationError(
-                f"'{app.config.name}' must declare the frappe versions it supports in pyproject.toml.\n"
-                "Add:\n"
+            # Legacy apps (frappe's own print_designer, for one) predate the
+            # table entirely: with nothing declared there is no version range
+            # to check and no cross-check against hooks.py that could mean
+            # anything. FrappeCompatibilityCheck already leaves such apps
+            # alone - warn loudly and let the install proceed, the same
+            # standard the update path applies.
+            return [
+                f"'{app.config.name}' does not declare the frappe versions it supports in "
+                "pyproject.toml, so compatibility cannot be verified.\n"
+                "Installing anyway - add before the next release:\n"
                 "  [tool.bench.frappe-dependencies]\n"
                 f'  frappe = "{_EXAMPLE_SPECIFIER}"'
-            )
+            ]
         self._check_version_specifiers(app, declared)
 
         # hooks.py's required_apps never lists frappe itself (it's implicit),
@@ -39,6 +46,7 @@ class DependencyDeclarationsCheck:
                 "[tool.bench.frappe-dependencies] doesn't declare them.\n"
                 f'Add one entry per app, e.g. {missing[0]} = "{_EXAMPLE_SPECIFIER}"'
             )
+        return []
 
     def get_hooks_required_apps(self, app: "App") -> list[str]:
         """Parse hooks.py (guaranteed present by RepoStructureCheck) for required_apps."""

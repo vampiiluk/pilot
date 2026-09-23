@@ -25,9 +25,19 @@ class Validator:
         self.app = app
         self.checks = checks or _all_checks()
 
-    def validate(self) -> None:
+    def validate(self) -> list[str]:
+        """Run every check in order, failing fast on the first that rejects the app.
+
+        Returns the warnings collected from checks that flag something without
+        raising (e.g. an app that declares no frappe version at all); the
+        caller shows them to the user before proceeding.
+        """
+        warnings: list[str] = []
         for check in self.checks:
-            check.run(self.app)
+            result = check.run(self.app)
+            if result:
+                warnings.extend(result)
+        return warnings
 
 
 def _all_checks() -> list["ValidationCheck"]:

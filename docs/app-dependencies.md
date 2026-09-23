@@ -19,9 +19,11 @@ frappe = ">=16.0.0,<17.0.0"                # frappe apps, with the versions supp
 erpnext = ">=16.0.0,<17.0.0"
 ```
 
-`[tool.bench.frappe-dependencies]` is required for every app except frappe itself, and every entry
-needs a real version range. An empty or missing range is rejected: pilot cannot tell whether the app
-fits the bench without one.
+`[tool.bench.frappe-dependencies]` should ship on every app except frappe itself, and every entry
+needs a real version range. An empty or missing range on a *declared* entry is rejected: pilot cannot
+tell whether the app fits the bench without one. An app that declares no table at all (legacy apps
+such as frappe's own print_designer) still installs - pilot warns first that compatibility cannot be
+verified, the same standard the update path applies.
 
 Prefer ranges over exact pins. `markdown==3.8.2` says no other app on the bench may ever need a
 different version - which is a claim about other people's apps, not just your own.

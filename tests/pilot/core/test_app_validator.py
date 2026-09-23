@@ -150,30 +150,46 @@ def test_dependency_declarations_fails_when_required_app_is_missing(tmp_path: Pa
         Validator(app, checks=_static_checks()).validate()
 
 
-def test_dependency_declarations_fails_when_frappe_dependencies_missing_entirely(
+def test_dependency_declarations_warns_when_frappe_dependencies_missing_entirely(
     tmp_path: Path,
 ) -> None:
+    """Legacy apps with no [tool.bench.frappe-dependencies] install, with a warning."""
     app = _make_app(
         tmp_path,
         "myapp",
         '[project]\nname = "myapp"\n',
         {"myapp/hooks.py": "app_name = 'myapp'\n"},
     )
-    with pytest.raises(AppValidationError, match="must declare the frappe versions it supports"):
-        Validator(app, checks=_static_checks()).validate()
+    warnings = Validator(app, checks=_static_checks()).validate()
+    assert any("does not declare the frappe versions it supports" in w for w in warnings)
 
 
-def test_dependency_declarations_fails_when_frappe_dependencies_omits_frappe(
+def test_dependency_declarations_warns_when_frappe_dependencies_omits_frappe(
     tmp_path: Path,
 ) -> None:
+    """A table that exists but omits frappe is equally undeclared - warn, don't block."""
     app = _make_app(
         tmp_path,
         "myapp",
         '[project]\nname = "myapp"\n\n[tool.bench.frappe-dependencies]\nerpnext = ">=15"\n',
         {"myapp/hooks.py": "app_name = 'myapp'\n"},
     )
-    with pytest.raises(AppValidationError, match="must declare the frappe versions it supports"):
-        Validator(app, checks=_static_checks()).validate()
+    warnings = Validator(app, checks=_static_checks()).validate()
+    assert any("does not declare the frappe versions it supports" in w for w in warnings)
+
+
+def test_dependency_declarations_warns_without_blocking_the_install(tmp_path: Path) -> None:
+    """The install path prints the warning but still proceeds to promote the app."""
+    app = _make_app(
+        tmp_path,
+        "myapp",
+        '[project]\nname = "myapp"\n',
+        {"myapp/hooks.py": "app_name = 'myapp'\n"},
+    )
+    warnings = Validator(app, checks=_static_checks()).validate()
+    assert warnings, "expected at least one warning"
+    # No exception was raised - validation completed normally.
+    assert all(isinstance(w, str) for w in warnings)
 
 
 def test_dependency_declarations_excludes_frappe_from_hooks_comparison(tmp_path: Path) -> None:
