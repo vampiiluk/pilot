@@ -49,6 +49,11 @@ PROVIDER_LABELS = {
     "digitalocean": "DigitalOcean Spaces",
     "hetzner": "Hetzner Object Storage",
     "r2": "Cloudflare R2",
+    # Upstream adds a label only - no entry in ENDPOINT_TEMPLATES and none in
+    # SUPPORTED_REGIONS - so this is inert here. Kept because dropping it would
+    # be a silent edit to someone else's feature, and because "r2" above is
+    # load-bearing for this fork's offsite backups.
+    "frappe": "Frappe Cloud",
 }
 
 SUPPORTED_REGIONS = {
