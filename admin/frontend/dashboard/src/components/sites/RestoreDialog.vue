@@ -4,10 +4,15 @@ import { computed, ref } from 'vue'
 import { Button, Dialog, ErrorMessage, FormControl } from 'frappe-ui'
 
 import { sitesApi } from '@/api/sites'
-import { apiErrorMessage } from '@/api/client'
+import { apiErrorMessage, hasApiError } from '@/api/client'
+import type { Backup } from '@/types/siteBackups'
+import type { RestorePayload } from '@/types/siteArchived'
 import { fmtDateTime } from '@/utils/taskFormat'
 
-const props = defineProps<{ siteName: string; backup: object | null }>()
+// The prop is a Backup from the backups grid. It was `object | null`, which
+// pushed every property read off it into a TS2339 - the dialog cannot show
+// anything without created_at and timestamp.
+const props = defineProps<{ siteName: string; backup: Backup | null }>()
 
 const visible = ref(false)
 const targetName = ref('')
@@ -26,7 +31,7 @@ const open = () => {
 
 defineExpose({ open })
 
-const files = computed(() => (props.backup?.files ?? []) as Array<{ kind: string; path: string | null }>)
+const files = computed(() => props.backup?.files ?? [])
 const fileFor = (kind: string) => files.value.find((f) => f.kind === kind) ?? null
 const hasPublic = computed(() => !!fileFor('public-file'))
 const hasPrivate = computed(() => !!fileFor('private-file'))
@@ -53,19 +58,20 @@ const submit = async () => {
   error.value = ''
   if (!props.backup) return
   try {
-    const result = await sitesApi.backups.restore(props.siteName, props.backup.timestamp, {
+    const payload: RestorePayload = {
       target_name: targetName.value.trim(),
       admin_password: adminPassword.value,
       include_public_files: includePublic.value,
       include_private_files: includePrivate.value,
-    })
-    if (result.error) {
+    }
+    const result = await sitesApi.backups.restore(props.siteName, props.backup.timestamp, payload)
+    if (hasApiError(result)) {
       error.value = apiErrorMessage(result, 'Restore failed.')
       return
     }
     visible.value = false
   } catch (e) {
-    error.value = e.message || 'Restore failed.'
+    error.value = e instanceof Error ? e.message : 'Restore failed.'
   } finally {
     submitting.value = false
   }

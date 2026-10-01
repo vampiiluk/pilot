@@ -1,6 +1,7 @@
 import { apiUrl, request, unwrap } from '@/api/client'
 import type { DisabledApp, EnabledApp, SiteApps } from '@/types/siteApps'
 import type { Backup, BackupSchedule } from '@/types/siteBackups'
+import type { ArchivedSite, RestorePayload } from '@/types/siteArchived'
 import type { DnsRecords, SiteDomains } from '@/types/siteDomains'
 import type { SiteAnalytics, SiteUptime } from '@/types/siteMonitoring'
 import type { SiteStorageReport } from '@/types/siteStorage'
@@ -133,7 +134,7 @@ export const sitesApi = {
           `sites/${encodeURIComponent(name)}/backups/${encodeURIComponent(timestamp)}/download-links`,
         )
         .json(),
-    restore: (name, timestamp, payload) =>
+    restore: (name: string, timestamp: string, payload: RestorePayload): Promise<TaskPayload> =>
       request
         .post(
           `sites/${encodeURIComponent(name)}/backups/${encodeURIComponent(timestamp)}/restore`,
@@ -141,18 +142,21 @@ export const sitesApi = {
         )
         .json(),
     archived: {
-      list: () => request.get('sites/archived').json(),
-      backups: (name) =>
+      list: (): Promise<ArchivedSite[]> => request.get('sites/archived').json(),
+      backups: (name: string): Promise<Backup[]> =>
         request.get(`sites/archived/${encodeURIComponent(name)}/backups`).json(),
-      move: (name, timestamp, target) =>
+      move: (name: string, timestamp: string, target: string): Promise<TaskPayload> =>
         request
           .post(`sites/archived/${encodeURIComponent(name)}/backups/${encodeURIComponent(timestamp)}/move`, {
             json: { site: target },
           })
           .json(),
-      deleteRun: (name, timestamp) =>
-        request.delete(`sites/archived/${encodeURIComponent(name)}/backups/${encodeURIComponent(timestamp)}`).json(),
-      deleteSite: (name) => request.delete(`sites/archived/${encodeURIComponent(name)}`).json(),
+      deleteRun: (name: string, timestamp: string): Promise<TaskPayload> =>
+        request
+          .delete(`sites/archived/${encodeURIComponent(name)}/backups/${encodeURIComponent(timestamp)}`)
+          .json(),
+      deleteSite: (name: string): Promise<TaskPayload> =>
+        request.delete(`sites/archived/${encodeURIComponent(name)}`).json(),
     },
     schedule: {
       get: (name: string): Promise<BackupSchedule> =>

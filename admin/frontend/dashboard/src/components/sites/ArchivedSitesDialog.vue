@@ -5,6 +5,8 @@ import { Button, Combobox, Dialog, Dropdown, ErrorMessage, toast } from 'frappe-
 
 import { sitesApi } from '@/api/sites'
 import { apiErrorMessage } from '@/api/client'
+import type { ArchivedSite } from '@/types/siteArchived'
+import type { Backup, BackupFile } from '@/types/siteBackups'
 import { fmtDateTime } from '@/utils/taskFormat'
 import { openTaskDetailPage } from '@/utils/taskRoute'
 import { useRouter } from 'vue-router'
@@ -14,12 +16,12 @@ const router = useRouter()
 const visible = ref(false)
 const loading = ref(false)
 const error = ref('')
-const archived = ref([])
-const liveSites = ref([])
+const archived = ref<ArchivedSite[]>([])
+const liveSites = ref<string[]>([])
 const expanded = ref<string | null>(null)
-const runsBySite = ref<Record<string, Array<object>>>({})
+const runsBySite = ref<Record<string, Backup[]>>({})
 
-const fmtBytes = (b) =>
+const fmtBytes = (b?: number) =>
   !b ? '-' : b < 1024 ** 2 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1024 ** 2).toFixed(1)} MB`
 
 const open = async () => {
@@ -36,7 +38,7 @@ const refreshAll = async () => {
     liveSites.value = (live ?? []).map((s) => s.name)
     if (expanded.value) await loadRuns(expanded.value)
   } catch (e) {
-    error.value = e.message || 'Could not load archived sites.'
+    error.value = e instanceof Error ? e.message : 'Could not load archived sites.'
   } finally {
     loading.value = false
   }
@@ -59,12 +61,13 @@ const toggle = (name: string) => {
   if (!runsBySite.value[name]) loadRuns(name)
 }
 
-const fileOf = (set, kind) => set.files?.find((f) => f.kind === kind) ?? null
+const fileOf = (set: Backup, kind: BackupFile['kind']): BackupFile | null =>
+  set.files?.find((f) => f.kind === kind) ?? null
 
 const moveTarget = ref<Record<string, string>>({})
 const moving = ref(false)
 
-const moveRun = async (archivedName: string, run: object) => {
+const moveRun = async (archivedName: string, run: Backup) => {
   const target = moveTarget.value[archivedName]
   if (!target) {
     toast.error('Choose a site to move the backup into first.')
@@ -79,13 +82,13 @@ const moveRun = async (archivedName: string, run: object) => {
     await loadRuns(archivedName)
     await refreshAll()
   } catch (e) {
-    error.value = e.message || 'Move failed.'
+    error.value = e instanceof Error ? e.message : 'Move failed.'
   } finally {
     moving.value = false
   }
 }
 
-const deleteRun = async (archivedName: string, run: object) => {
+const deleteRun = async (archivedName: string, run: Backup) => {
   error.value = ''
   try {
     const result = await sitesApi.backups.archived.deleteRun(archivedName, run.timestamp)
@@ -94,7 +97,7 @@ const deleteRun = async (archivedName: string, run: object) => {
     await loadRuns(archivedName)
     await refreshAll()
   } catch (e) {
-    error.value = e.message || 'Delete failed.'
+    error.value = e instanceof Error ? e.message : 'Delete failed.'
   }
 }
 
@@ -106,7 +109,7 @@ const deleteSite = async (name: string) => {
     else error.value = apiErrorMessage(result, 'Delete failed.')
     await refreshAll()
   } catch (e) {
-    error.value = e.message || 'Delete failed.'
+    error.value = e instanceof Error ? e.message : 'Delete failed.'
   }
 }
 

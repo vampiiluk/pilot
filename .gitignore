@@ -16,6 +16,8 @@
 
 # Git provider PAT store (plaintext token — never commit)
 .bench.git.info
+.git-credentials
+.git-credentials-*
 
 # JWKS dev issuer (testing only — private key in plaintext)
 jwks-dev-server/

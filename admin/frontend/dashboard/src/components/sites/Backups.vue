@@ -6,12 +6,12 @@ import {
   Button,
   Dialog,
   Dropdown,
+  type DropdownItem,
   ErrorMessage,
   LoadingText,
   Select,
   toast,
 } from 'frappe-ui'
-import { ListFooter, ListRowItem, ListView } from 'frappe-ui/experimental'
 
 import EmptyState from '@/components/common/EmptyState.vue'
 import ListSkeleton from '@/components/common/ListSkeleton.vue'
@@ -22,7 +22,8 @@ import RestoreDialog from '@/components/sites/RestoreDialog.vue'
 import { sitesApi } from '@/api/sites'
 import { tasksApi } from '@/api/tasks'
 import { cronToLabel } from '@/utils/backup'
-import { apiErrorMessage } from '@/api/client'
+import { apiErrorMessage, hasApiError } from '@/api/client'
+import type { Backup, BackupFile, BackupSchedule } from '@/types/siteBackups'
 import { fmtDateTime } from '@/utils/taskFormat'
 import { useSite } from '@/composables/sites/useSite'
 import { openTaskDetailPage } from '@/utils/taskRoute'
@@ -49,12 +50,14 @@ const pageLengths = [20, 50, 100].map((n) => ({ label: `${n} per page`, value: n
 const backingUp = ref(false)
 const error = ref('')
 
-const configRef = ref(null)
-const config = ref(null)
+// Both of these were ref(null), which types the value as `null` and leaves
+// every read of it a `never`. The config is a BackupSchedule.
+const configRef = ref<InstanceType<typeof BackupConfigDialog> | null>(null)
+const config = ref<BackupSchedule | null>(null)
 const enabled = computed(() => !!config.value?.schedule)
 
 const scheduleSummary = computed(() =>
-  enabled.value
+  enabled.value && config.value?.schedule
     ? `${cronToLabel(config.value.schedule)}.`
     : 'Manual backups are kept until you delete them.',
 )
@@ -80,23 +83,28 @@ const backupNow = async () => {
       error.value = apiErrorMessage(result, 'Backup failed.')
     }
   } catch (e) {
-    error.value = e.message || 'Backup failed.'
+    error.value = e instanceof Error ? e.message : 'Backup failed.'
   } finally {
     backingUp.value = false
   }
 }
 
+// Table.vue sizes columns with `class`, not a `width` prop - `width: 2` and
+// friends were ListView's flex units and silently did nothing here.
 const columns = [
-  { label: 'Date', key: 'timestamp', width: 2 },
-  { label: 'Database', key: 'database', width: 1, class: 'tabular-nums' },
-  { label: 'Public', key: 'public', width: 1, class: 'tabular-nums' },
-  { label: 'Private', key: 'private', width: 1, class: 'tabular-nums' },
-  { label: 'Offsite', key: 'offsite', width: 0.5, class: 'text-center' },
-  { label: '', key: 'actions', width: 0.5 },
+  { label: 'Date', key: 'timestamp', class: 'w-1/3' },
+  { label: 'Database', key: 'database', class: 'tabular-nums' },
+  { label: 'Public', key: 'public', class: 'tabular-nums' },
+  { label: 'Private', key: 'private', class: 'tabular-nums' },
+  { label: 'Offsite', key: 'offsite', class: 'text-center' },
+  { label: '', key: 'actions', class: 'w-12' },
 ]
 
-const fileOf = (set, kind) => set.files?.find((f) => f.kind === kind) ?? null
-const fmtSize = (b) =>
+type FileKind = BackupFile['kind']
+
+const fileOf = (set: Backup, kind: FileKind): BackupFile | null =>
+  set.files?.find((f) => f.kind === kind) ?? null
+const fmtSize = (b?: number) =>
   !b ? '-' : b < 1024 ** 2 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1024 ** 2).toFixed(1)} MB`
 
 const rows = computed(() =>
@@ -112,15 +120,15 @@ const rows = computed(() =>
 
 // The offsite metadata's file_type keys don't match the UI's kind names;
 // this is the same mapping BackupReader uses to merge remote-only files in.
-const OFFSITE_KIND_KEYS = {
+const OFFSITE_KIND_KEYS: Record<string, string> = {
   database: 'database',
   'public-file': 'files',
   'private-file': 'private_files',
   site_config: 'site_config',
 }
 
-const menuOptions = (set) => {
-  const kinds = [
+const menuOptions = (set: Backup): DropdownItem[] => {
+  const kinds: Array<[FileKind, string]> = [
     ['database', 'Download Database'],
     ['public-file', 'Download Public'],
     ['private-file', 'Download Private'],
@@ -154,8 +162,8 @@ const menuOptions = (set) => {
   ]
 }
 
-const restoreRef = ref(null)
-const restoreTarget = ref(null)
+const restoreRef = ref<InstanceType<typeof RestoreDialog> | null>(null)
+const restoreTarget = ref<Backup | null>(null)
 
 const downloadViaAnchor = (url: string) => {
   const anchor = document.createElement('a')
@@ -168,7 +176,7 @@ const downloadViaAnchor = (url: string) => {
   anchor.remove()
 }
 
-const downloadFile = async (set, kind) => {
+const downloadFile = async (set: Backup, kind: FileKind) => {
   const file = fileOf(set, kind)
   if (file?.path) {
     downloadViaAnchor(sitesApi.backups.download(props.siteName, set.timestamp, file.filename))
@@ -179,7 +187,7 @@ const downloadFile = async (set, kind) => {
   error.value = ''
   try {
     const links = await sitesApi.backups.downloadLinks(props.siteName, set.timestamp)
-    if (links.error) {
+    if (hasApiError(links)) {
       error.value = apiErrorMessage(links, 'Could not load offsite backup.')
       return
     }
@@ -190,12 +198,12 @@ const downloadFile = async (set, kind) => {
     }
     downloadViaAnchor(url)
   } catch (e) {
-    error.value = e.message || 'Failed to get offsite download link.'
+    error.value = e instanceof Error ? e.message : 'Failed to get offsite download link.'
   }
 }
 
 const showDelete = ref(false)
-const deleteTarget = ref(null)
+const deleteTarget = ref<Backup | null>(null)
 const deleting = ref(false)
 const deleteError = ref('')
 
@@ -203,14 +211,14 @@ const confirmDelete = async () => {
   deleting.value = true
   deleteError.value = ''
   try {
-    const filenames = deleteTarget.value.files.map((f) => f.filename)
+    const filenames = (deleteTarget.value?.files ?? []).map((f) => f.filename)
     const data = await tasksApi.run('delete-backup', { site: props.siteName, filenames })
     if (data.task_id) {
       showDelete.value = false
       openTaskDetailPage(router, data.task_id)
     } else deleteError.value = apiErrorMessage(data, 'Delete failed.')
   } catch (e) {
-    deleteError.value = e.message || 'Delete failed.'
+    deleteError.value = e instanceof Error ? e.message : 'Delete failed.'
   } finally {
     deleting.value = false
   }
@@ -262,20 +270,24 @@ onMounted(() => {
         </Button>
       </EmptyState>
 
-      <ListView
-        v-else
-        :columns="columns"
-        :rows="rows"
-        row-key="name"
-        :options="{ selectable: false, showTooltip: false }"
-      >
-        <template #cell="{ column, row, item }">
-          <div v-if="column.key === 'actions'" class="flex justify-end">
+      <Table v-else :columns="columns" :rows="rows" height="max-h-[32rem]">
+        <template #offsite="{ row }">
+          <div class="flex justify-center">
+            <span
+              v-if="row.set.is_offsite"
+              class="size-4 text-ink-gray-6 lucide-check"
+              title="Backed up offsite"
+            />
+            <span v-else class="size-4 text-ink-gray-4 lucide-x" title="Not backed up offsite" />
+          </div>
+        </template>
+
+        <template #actions="{ row }">
+          <div class="flex justify-end">
             <Dropdown :options="menuOptions(row.set)">
               <template #default="{ open }">
                 <Button
                   variant="ghost"
-                  size="sm"
                   :active="open"
                   icon="lucide-ellipsis"
                   label="Backup actions"
@@ -284,28 +296,21 @@ onMounted(() => {
               </template>
             </Dropdown>
           </div>
-
-          <div v-else-if="column.key === 'offsite'" class="flex justify-center">
-            <span
-              v-if="row.set.is_offsite"
-              class="size-4 text-ink-gray-6 lucide-check"
-              title="Backed up offsite"
-            />
-            <span v-else class="size-4 text-ink-gray-4 lucide-x" title="Not backed up offsite" />
-          </div>
-
-          <ListRowItem v-else :column="column" :row="row" :item="item" :align="column.align" />
         </template>
-      </ListView>
+      </Table>
 
-      <ListFooter
-        v-if="backupsHasMore || backups.length > 20"
-        class="mt-2 px-1"
-        :model-value="backupsLimit"
-        :options="footerOptions"
-        @update:model-value="setBackupsPageLength"
-        @load-more="loadMoreBackups"
-      />
+      <div v-if="backupsHasMore || backups.length > 20" class="flex items-center gap-3 mt-2 px-1">
+        <Select
+          size="sm"
+          :model-value="backupsLimit"
+          :options="pageLengths"
+          @update:model-value="(value) => setBackupsPageLength(Number(value))"
+        />
+
+        <span class="text-ink-gray-5 text-sm">{{ backups.length }} backups</span>
+
+        <Button v-if="backupsHasMore" class="ml-auto" @click="loadMoreBackups">Load more</Button>
+      </div>
     </div>
 
     <!-- Delete confirmation dialog -->

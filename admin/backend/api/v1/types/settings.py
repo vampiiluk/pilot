@@ -62,6 +62,7 @@ class S3Settings(TypedDict):
     provider: str
     region: str
     endpoint_url: str
+    max_gb: float
 
 
 class LLMSettings(TypedDict):
