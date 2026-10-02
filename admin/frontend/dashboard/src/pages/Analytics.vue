@@ -17,6 +17,7 @@ import { monitorApi } from '@/api/monitor'
 import { useIsMobile } from '@/composables/common/useIsMobile'
 import { useSites } from '@/composables/sites/useSites'
 import { errorMessage } from '@/utils/error'
+import { withIsoTime } from '@/utils/chartTime'
 import { livePollDelayMs } from '@/utils/livePolling'
 import type {
   ApplicationMetricsHistory,
@@ -397,8 +398,14 @@ const liveXAxis = computed<ChartXAxisOptions>(() => ({
   echartOptions: { min: liveNow.value - LIVE_WINDOW_MS, max: liveNow.value, splitLine: GRID },
 }))
 
-const currentPoints = computed<MetricPoint[]>(() =>
-  isHistorical.value ? system.value.points : liveHistory.value,
+// The endpoints send epoch milliseconds, which is what every axis bound here is
+// arithmetic on (`liveNow - LIVE_WINDOW_MS`) and what the live-window filters
+// compare against — so the stored points stay numeric. A `time` x-axis cannot
+// read a bare number, though: frappe-ui's toDate() takes a Date or an ISO string,
+// drops every row it cannot place, and the chart reports "No data to show". The
+// conversion happens here, on the way into a chart config, and nowhere else.
+const currentPoints = computed(() =>
+  withIsoTime(isHistorical.value ? system.value.points : liveHistory.value),
 )
 const currentXAxis = computed(() => (isHistorical.value ? fixedXAxis.value : liveXAxis.value))
 
@@ -416,7 +423,9 @@ const styleFor = (names: string[], colorAt: (name: string, index: number) => num
     names.map((name, i): [string, SeriesStyle] => [name, lineSeries(colorAt(name, i))]),
   )
 
-const scaleFields = (points: MetricPoint[], keys: string[], divisor: number): MetricPoint[] => {
+// Runs on rows that have already been through withIsoTime(), so `time` is a
+// string here, not a number. Scaling touches only the named series.
+const scaleFields = (points: Record<string, any>[], keys: string[], divisor: number): Record<string, any>[] => {
   return points.map((p) => ({
     ...p,
 
@@ -432,11 +441,13 @@ const scaleFields = (points: MetricPoint[], keys: string[], divisor: number): Me
 const normalizeAppData = (
   points: Record<string, number | null>[],
   services: string[],
-): MetricPoint[] => {
-  return points.map((p) => ({
-    time: p.time,
-    ...Object.fromEntries(services.map((s) => [s, p[s] ?? 0])),
-  }))
+): Record<string, any>[] => {
+  return withIsoTime(
+    points.map((p) => ({
+      time: p.time,
+      ...Object.fromEntries(services.map((s) => [s, p[s] ?? 0])),
+    })),
+  )
 }
 
 // Chart configs

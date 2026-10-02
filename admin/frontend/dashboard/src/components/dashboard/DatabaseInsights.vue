@@ -17,6 +17,7 @@ import SlowQueries from '@/components/dashboard/SlowQueries.vue'
 import { apiErrorMessage, hasApiError } from '@/api/client'
 import { monitorApi } from '@/api/monitor'
 import { formatBytes } from '@/utils/format'
+import { withIsoTime } from '@/utils/chartTime'
 import { errorMessage } from '@/utils/error'
 import type { DatabaseHistory } from '@/types/stats'
 
@@ -43,7 +44,10 @@ const loading = ref(true)
 const error = ref('')
 const data = ref<DatabaseHistory | null>(null)
 
-const points = computed(() => data.value?.points ?? [])
+// The endpoint sends epoch milliseconds. A `time` x-axis reads a Date or an ISO
+// string and nothing else, so unconverted rows are all dropped and each chart
+// reports "No data to show" while the data sits right here.
+const points = computed(() => withIsoTime(data.value?.points ?? []))
 const unsupported = computed(() => data.value?.slow_queries?.unsupported === true)
 const empty = computed(() => !unsupported.value && points.value.length === 0)
 

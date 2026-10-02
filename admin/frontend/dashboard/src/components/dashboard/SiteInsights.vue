@@ -10,6 +10,7 @@ import SiteUptime from '@/components/dashboard/SiteUptime.vue'
 import { apiErrorMessage, hasApiError } from '@/api/client'
 import { sitesApi } from '@/api/sites'
 import type { SiteAnalytics, Timeline } from '@/types/siteMonitoring'
+import { withIsoTime } from '@/utils/chartTime'
 import { errorMessage } from '@/utils/error'
 
 interface Props {
@@ -57,7 +58,10 @@ const axisMin = computed(() => axisMax.value - (data.value?.window_seconds ?? 0)
 const timelineConfig = (timeline: Timeline | undefined, valueLabel: string): BarChartProps => {
   const categories = timeline?.categories ?? []
   return {
-    data: timeline?.points ?? [],
+    // Epoch milliseconds in, ISO strings out: a `time` x-axis reads a Date or
+    // an ISO string, and drops every row it cannot place. The axis bounds above
+    // stay numeric.
+    data: withIsoTime(timeline?.points ?? []),
     x: 'time',
     y: categories,
     stacked: true,
