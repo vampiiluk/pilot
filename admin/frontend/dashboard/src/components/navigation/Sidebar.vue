@@ -34,8 +34,20 @@ const isActive = (to: string) => route.path === to || route.path.startsWith(`${t
 </script>
 
 <template>
+  <!--
+    `disable-collapse` is not a prop of frappe-ui's Sidebar — it was renamed to
+    `collapsible` and inverted. Passing the old name did nothing: defineProps does
+    not reject unknown attributes, so it landed on the <nav> as dead markup and
+    `shouldCollapse` fell through to its default of `isCollapsed ?? isMobile`,
+    which is true below the `sm` breakpoint. The mobile sidebar then collapsed,
+    and SidebarItem/SidebarLabel hide their text with `opacity-0` when collapsed,
+    so every label vanished while its icon (a sibling span) stayed visible.
+
+    `collapsible` is the factor `shouldCollapse` multiplies, so `false` pins it
+    expanded on mobile; `true` on desktop leaves the auto-collapse the rail wants.
+  -->
   <Sidebar
-    :disable-collapse="isMobile"
+    :collapsible="!isMobile"
     class="border-r dark:border-outline-gray-2"
     :class="isMobile ? '!w-full !border-r-0 mobile-sidebar bg-transparent' : ''"
   >
