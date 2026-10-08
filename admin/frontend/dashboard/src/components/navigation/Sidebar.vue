@@ -34,20 +34,20 @@ const isActive = (to: string) => route.path === to || route.path.startsWith(`${t
 </script>
 
 <template>
-  <Sidebar
-    <!--
-        `collapsible` is the factor `shouldCollapse` multiplies:
-        `collapsible && (collapsed ?? isMobile)`. It defaults to true, so on mobile
-        the sidebar collapses and frappe-ui's labels take `w-0 overflow-hidden
-        opacity-0` — every label disappears while its icon span stays visible.
+  <!--
+    `collapsible` is the factor `shouldCollapse` multiplies:
+    `collapsible && (collapsed ?? isMobile)`. It defaults to true, so on mobile the
+    sidebar collapses and frappe-ui's labels take `w-0 overflow-hidden opacity-0` —
+    every label disappears while its icon span stays visible.
 
-        Pinning `collapsible` false on mobile keeps the labels; leaving it true on
-        desktop preserves the auto-collapsing rail. Do not pass
-        `disable-collapse`: that prop belongs to frappe-ui's 1.0.0-beta line, and
-        defineProps does not reject unknown attributes, so it would land on the
-        <nav> as dead markup and this would silently regress again.
-      -->
-      :collapsible="!isMobile"
+    Pinning `collapsible` false on mobile keeps the labels; leaving it true on
+    desktop preserves the auto-collapsing rail. Do not pass `disable-collapse`: that
+    prop belongs to frappe-ui's 1.0.0-beta line, and defineProps does not reject
+    unknown attributes, so it would land on the <nav> as dead markup and this would
+    silently regress again.
+  -->
+  <Sidebar
+    :collapsible="!isMobile"
     class="border-r dark:border-outline-gray-2"
     :class="isMobile ? '!w-full !border-r-0 mobile-sidebar bg-transparent' : ''"
   >
