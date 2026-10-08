@@ -12,7 +12,7 @@ import pilot
 from pilot.exceptions import BenchError
 from pilot.utils import cli_root, extract_tar_archive
 
-RELEASE_REPO = "frappe/pilot"
+RELEASE_REPO = "vampiiluk/pilot"
 _RELEASES_API = f"https://api.github.com/repos/{RELEASE_REPO}/releases?per_page=1"
 _TARBALL_ASSET = "pilot.tar.gz"
 _OBSOLETE_TOP_LEVEL_ENTRIES = ("bench",)
