@@ -9,6 +9,7 @@ class S3Config:
     provider: str = ""
     region: str = ""
     endpoint_url: str = ""
+    max_gb: float = 8.0
 
     @property
     def is_configured(self) -> bool:

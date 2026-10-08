@@ -41,12 +41,14 @@ ENDPOINT_TEMPLATES = {
     "aws": "https://s3.{region}.amazonaws.com",
     "digitalocean": "https://{region}.digitaloceanspaces.com",
     "hetzner": "https://{region}.your-objectstorage.com",
+    "r2": "https://{region}.r2.cloudflarestorage.com",
 }
 
 PROVIDER_LABELS = {
     "aws": "Amazon S3",
     "digitalocean": "DigitalOcean Spaces",
     "hetzner": "Hetzner Object Storage",
+    "r2": "Cloudflare R2",
     "frappe": "Frappe Cloud",
 }
 
@@ -66,6 +68,9 @@ SUPPORTED_REGIONS = {
     ],
     "digitalocean": ["nyc3", "sfo3", "sgp1", "ams3", "fra1"],
     "hetzner": ["fsn1", "nbg1", "hel1"],
+    # R2 regions are account-scoped, not geographic: the {region} slot holds the
+    # account id and "auto" is what the dashboard offers.
+    "r2": ["auto"],
 }
 
 
@@ -227,6 +232,19 @@ class S3:
         except ClientError as error:
             raise S3IntegrationError(
                 f"Failed to list '{bucket_name}/{prefix}': {error.response['Error'].get('Message', error)}",
+            ) from error
+
+    def total_size(self, bucket_name: str, prefix: str) -> int:
+        """Total stored bytes under a prefix - used to enforce an offsite quota."""
+        try:
+            paginator = self.client.get_paginator("list_objects_v2")
+            total = 0
+            for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
+                total += sum(obj.get("Size", 0) for obj in page.get("Contents", []))
+            return total
+        except ClientError as error:
+            raise S3IntegrationError(
+                f"Failed to measure '{bucket_name}/{prefix}': {error.response['Error'].get('Message', error)}"
             ) from error
 
     def has_object(self, bucket_name: str, remote_key: str) -> bool:
